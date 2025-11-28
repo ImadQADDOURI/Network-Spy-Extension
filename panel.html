@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h2>🎯 Request Capture</h2>
+
+      <div class="controls">
+        <button id="recordBtn" class="btn-primary" title="Record / Pause">⏺ Record</button>
+        <button id="clearBtn" title="Clear captured requests">🗑 Clear</button>
+        <button id="exportBtn" title="Export requests">⬇ Export</button>
+        <button id="rulesBtn" class="btn-accent" title="Manage rules">⚙ Rules</button>
+      </div>
+    </header>
+
+    <div class="main-container">
+      <!-- Rules Dashboard -->
+      <section class="rules-panel">
+        <div class="panel-header">
+          <h3>Active Rules</h3>
+          <span id="rulesCount" class="badge">0</span>
+        </div>
+        <div id="rulesList" class="rules-list"></div>
+      </section>
+
+      <!-- Requests Area -->
+      <section class="requests-area">
+        <!-- Filters & Search -->
+        <div class="filter-bar">
+          <input type="text" id="searchInput" placeholder="🔍 Search requests..." />
+
+          <select id="ruleFilter">
+            <option value="">All Rules</option>
+          </select>
+
+          <select id="methodFilter">
+            <option value="">All Methods</option>
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+            <option value="PUT">PUT</option>
+            <option value="DELETE">DELETE</option>
+            <option value="PATCH">PATCH</option>
+          </select>
+
+          <select id="statusFilter">
+            <option value="">All Status</option>
+            <option value="2xx">2xx</option>
+            <option value="3xx">3xx</option>
+            <option value="4xx">4xx</option>
+            <option value="5xx">5xx</option>
+          </select>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination">
+          <label
+            >Per page:
+            <select id="pageSizeSelect">
+              <option value="10">10</option>
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </label>
+
+          <button id="prevPage">◀</button>
+          <span id="pageInfo">Page 1 / 1</span>
+          <button id="nextPage">▶</button>
+
+          <span id="totalCount" class="muted">0 requests</span>
+        </div>
+
+        <!-- Requests List -->
+        <div id="requestsList" class="requests-list"></div>
+
+        <!-- Request Preview -->
+        <div id="requestPreview" class="request-preview">
+          <div class="preview-header">
+            <h3>Request Details</h3>
+            <button id="copyBtn" title="Copy to clipboard">📋 Copy</button>
+          </div>
+          <div id="previewContent" class="preview-content">Select a request to view details</div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Rules Manager Modal -->
+    <div id="rulesModal" class="modal">
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h2>Rules Manager</h2>
+          <button class="close-btn" id="closeRulesModal">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="rules-actions">
+            <button id="addRuleBtn" class="btn-primary">+ Add Rule</button>
+            <button id="importRulesBtn">📥 Import</button>
+            <button id="exportRulesBtn">📤 Export</button>
+          </div>
+
+          <div id="rulesManager" class="rules-manager"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rule Editor Modal -->
+    <div id="ruleEditorModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="editorTitle">Add Rule</h2>
+          <button class="close-btn" id="closeEditorModal">×</button>
+        </div>
+        <div class="modal-body">
+          <form id="ruleForm">
+            <div class="form-group">
+              <label>Rule Name *</label>
+              <input type="text" id="ruleName" required placeholder="e.g., Facebook GraphQL" />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>Match Text</label>
+                <input type="text" id="matchText" placeholder="Text to search for" />
+              </div>
+
+              <div class="form-group">
+                <label>Match Field</label>
+                <select id="matchField">
+                  <option value="any">Any Field</option>
+                  <option value="url">URL</option>
+                  <option value="header">Headers</option>
+                  <option value="body">Body</option>
+                  <option value="queryParam">Query Params</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>HTTP Methods (leave empty for all)</label>
+              <div class="checkbox-group">
+                <label><input type="checkbox" value="GET" class="method-check" /> GET</label>
+                <label><input type="checkbox" value="POST" class="method-check" /> POST</label>
+                <label><input type="checkbox" value="PUT" class="method-check" /> PUT</label>
+                <label><input type="checkbox" value="DELETE" class="method-check" /> DELETE</label>
+                <label><input type="checkbox" value="PATCH" class="method-check" /> PATCH</label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Domains (comma-separated, leave empty for all)</label>
+              <input type="text" id="matchDomain" placeholder="e.g., facebook.com, graph.facebook.com" />
+            </div>
+
+            <div class="form-section">
+              <h4>Capture Settings</h4>
+              <div class="checkbox-group">
+                <label><input type="checkbox" id="captureQueryParams" checked /> Query Parameters</label>
+                <label><input type="checkbox" id="captureRequestHeaders" checked /> Request Headers</label>
+                <label><input type="checkbox" id="captureRequestBody" checked /> Request Body</label>
+                <label><input type="checkbox" id="captureResponseHeaders" checked /> Response Headers</label>
+                <label><input type="checkbox" id="captureResponseBody" checked /> Response Body</label>
+                <label><input type="checkbox" id="captureTiming" checked /> Timing Info</label>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="keepLastOnly" />
+                  Keep Last Match Only
+                </label>
+              </div>
+
+              <div class="form-group">
+                <label>Max Matches (0 = unlimited)</label>
+                <input type="number" id="maxMatches" value="0" min="0" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Notes</label>
+              <textarea id="ruleNotes" rows="2" placeholder="Optional description"></textarea>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn-primary">Save Rule</button>
+              <button type="button" id="cancelRuleBtn">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <input type="file" id="importFileInput" accept=".json" style="display: none" />
+
+    <script src="utils.js"></script>
+    <script src="storage.js"></script>
+    <script src="matcher.js"></script>
+    <script src="panel.js"></script>
+  </body>
+</html>

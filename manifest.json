@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Universal Request Capture",
+  "version": "2.0.0",
+  "description": "Capture network requests with powerful rule-based filtering. Supports all request types with real-time matching and export.",
+  "permissions": ["storage"],
+  "devtools_page": "devtools.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
