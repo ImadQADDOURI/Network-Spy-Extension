@@ -7,6 +7,7 @@
   let capturedRequests = [];
   let filteredRequests = [];
   let settings = {};
+  let config = {};
   let ruleStats = {}; // Track matches per rule
 
   // Pagination
@@ -19,6 +20,7 @@
   const clearBtn = document.getElementById("clearBtn");
   const exportBtn = document.getElementById("exportBtn");
   const rulesBtn = document.getElementById("rulesBtn");
+  const configBtn = document.getElementById("configBtn");
 
   const rulesList = document.getElementById("rulesList");
   const rulesCount = document.getElementById("rulesCount");
@@ -37,7 +39,10 @@
   const requestsList = document.getElementById("requestsList");
   const requestPreview = document.getElementById("requestPreview");
   const previewContent = document.getElementById("previewContent");
+  const previewMeta = document.getElementById("previewMeta");
   const copyBtn = document.getElementById("copyBtn");
+  const viewModeSelect = document.getElementById("viewModeSelect");
+  const curlBtn = document.getElementById("curlBtn");
 
   // Modals
   const rulesModal = document.getElementById("rulesModal");
@@ -54,11 +59,18 @@
   const ruleForm = document.getElementById("ruleForm");
   const cancelRuleBtn = document.getElementById("cancelRuleBtn");
 
+  // Config modal elements
+  const configModal = document.getElementById("configModal");
+  const closeConfigModal = document.getElementById("closeConfigModal");
+
   let editingRuleId = null;
+  let currentViewMode = "collapsible"; // 'raw', 'formatted', or 'collapsible'
+  let currentPreviewRequest = null;
 
   // Initialize
   async function init() {
     settings = await Storage.getSettings();
+    config = await Storage.getConfig();
     recording = settings.recording !== false;
     updateRecordButton();
 
@@ -168,6 +180,16 @@
     rulesModal.classList.remove("active");
   });
 
+  // Config modal
+  configBtn.addEventListener("click", () => {
+    loadConfigIntoForm();
+    configModal.classList.add("active");
+  });
+
+  closeConfigModal.addEventListener("click", () => {
+    configModal.classList.remove("active");
+  });
+
   // Add rule
   addRuleBtn.addEventListener("click", () => {
     editingRuleId = null;
@@ -221,8 +243,17 @@
     ruleEditorModal.classList.remove("active");
   });
 
+  // Header filter mode change
+  document.getElementById("headerFilterMode").addEventListener("change", (e) => {
+    const mode = e.target.value;
+    document.getElementById("excludeModeOptions").style.display = mode === "exclude" ? "block" : "none";
+    document.getElementById("includeModeOptions").style.display = mode === "include" ? "block" : "none";
+  });
+
   ruleForm.addEventListener("submit", async (e) => {
     e.preventDefault();
+
+    const headerFilterMode = document.getElementById("headerFilterMode").value;
 
     const ruleData = {
       name: document.getElementById("ruleName").value.trim(),
@@ -242,6 +273,25 @@
         responseBody: document.getElementById("captureResponseBody").checked,
         timing: document.getElementById("captureTiming").checked,
       },
+      headerFiltering: {
+        mode: headerFilterMode,
+        excludePseudoHeaders: document.getElementById("excludePseudoHeaders").checked,
+        excludeCommonHeaders: document.getElementById("excludeCommonHeaders").checked,
+        excludeSecurityHeaders: document.getElementById("excludeSecurityHeaders").checked,
+        excludeCacheHeaders: document.getElementById("excludeCacheHeaders").checked,
+        excludeCookies: document.getElementById("excludeCookies").checked,
+        excludeHeadersCustom: document
+          .getElementById("excludeHeadersCustom")
+          .value.split(",")
+          .map((h) => h.trim())
+          .filter((h) => h),
+        includeHeadersCustom: document
+          .getElementById("includeHeadersCustom")
+          .value.split(",")
+          .map((h) => h.trim())
+          .filter((h) => h),
+      },
+      maxResponseSize: parseInt(document.getElementById("maxResponseSize").value) || 0,
       keepLastOnly: document.getElementById("keepLastOnly").checked,
       maxMatches: parseInt(document.getElementById("maxMatches").value) || null,
       notes: document.getElementById("ruleNotes").value.trim(),
@@ -250,7 +300,7 @@
     if (editingRuleId) {
       await Storage.updateRule(editingRuleId, ruleData);
     } else {
-      await Storage.addRule({ ...Storage.createDefaultRule(), ...ruleData });
+      await Storage.addRule({ ...Storage.createDefaultRule({}, config), ...ruleData });
     }
 
     rules = await Storage.getRules();
@@ -292,6 +342,23 @@
     document.getElementById("captureResponseBody").checked = rule.capture?.responseBody !== false;
     document.getElementById("captureTiming").checked = rule.capture?.timing !== false;
 
+    // Header filtering
+    const headerMode = rule.headerFiltering?.mode || "none";
+    document.getElementById("headerFilterMode").value = headerMode;
+    document.getElementById("excludeModeOptions").style.display = headerMode === "exclude" ? "block" : "none";
+    document.getElementById("includeModeOptions").style.display = headerMode === "include" ? "block" : "none";
+
+    document.getElementById("excludePseudoHeaders").checked = rule.headerFiltering?.excludePseudoHeaders || false;
+    document.getElementById("excludeCommonHeaders").checked = rule.headerFiltering?.excludeCommonHeaders || false;
+    document.getElementById("excludeSecurityHeaders").checked = rule.headerFiltering?.excludeSecurityHeaders || false;
+    document.getElementById("excludeCacheHeaders").checked = rule.headerFiltering?.excludeCacheHeaders || false;
+    document.getElementById("excludeCookies").checked = rule.headerFiltering?.excludeCookies || false;
+    document.getElementById("excludeHeadersCustom").value =
+      rule.headerFiltering?.excludeHeadersCustom?.join(", ") || "";
+    document.getElementById("includeHeadersCustom").value =
+      rule.headerFiltering?.includeHeadersCustom?.join(", ") || "";
+
+    document.getElementById("maxResponseSize").value = rule.maxResponseSize || 0;
     document.getElementById("keepLastOnly").checked = rule.keepLastOnly || false;
     document.getElementById("maxMatches").value = rule.maxMatches || 0;
     document.getElementById("ruleNotes").value = rule.notes || "";
@@ -554,6 +621,194 @@
 
   // Show request preview
   function showRequestPreview(request) {
+    currentPreviewRequest = request;
+    currentViewMode = "raw";
+    renderPreview();
+  }
+
+  // Render preview
+  function renderPreview() {
+    if (!currentPreviewRequest) return;
+
+    const request = currentPreviewRequest;
+
+    // Update meta info
+    previewMeta.innerHTML = `
+      <div class="preview-meta-item">
+        <span class="preview-meta-label">Size:</span>
+        <span class="preview-meta-value">${Utils.formatBytes(request.responseSize || 0)}</span>
+      </div>
+      <div class="preview-meta-item">
+        <span class="preview-meta-label">Duration:</span>
+        <span class="preview-meta-value">${request.timing?.duration || 0}ms</span>
+      </div>
+      <div class="preview-meta-item">
+        <span class="preview-meta-label">From Cache:</span>
+        <span class="preview-meta-value">${request.fromCache ? "Yes" : "No"}</span>
+      </div>
+    `;
+    previewMeta.classList.add("show");
+
+    if (currentViewMode === "collapsible") {
+      renderCollapsiblePreview(request);
+    } else {
+      renderStandardPreview(request);
+    }
+  }
+
+  // Render collapsible preview
+  function renderCollapsiblePreview(request) {
+    const sections = [];
+
+    // Basic Info
+    sections.push({
+      title: "Basic Info",
+      badge: "📋",
+      content: {
+        id: request.id,
+        timestamp: new Date(request.timestamp).toISOString(),
+        rule: request.ruleMatched,
+        url: request.url,
+        method: request.method,
+        status: request.status,
+        resourceType: request.resourceType,
+        fromCache: request.fromCache,
+      },
+    });
+
+    // Query Params
+    if (request.queryParams && Object.keys(request.queryParams).length > 0) {
+      sections.push({
+        title: "Query Parameters",
+        badge: `${Object.keys(request.queryParams).length}`,
+        content: request.queryParams,
+      });
+    }
+
+    // Request Headers
+    if (request.requestHeaders && Object.keys(request.requestHeaders).length > 0) {
+      sections.push({
+        title: "Request Headers",
+        badge: `${Object.keys(request.requestHeaders).length}`,
+        content: request.requestHeaders,
+      });
+    }
+
+    // Request Body
+    if (request.requestBody) {
+      sections.push({
+        title: "Request Body",
+        badge: Utils.formatBytes(
+          typeof request.requestBody === "string"
+            ? request.requestBody.length
+            : JSON.stringify(request.requestBody).length
+        ),
+        content: request.requestBody,
+      });
+    }
+
+    // Response Headers
+    if (request.responseHeaders && Object.keys(request.responseHeaders).length > 0) {
+      sections.push({
+        title: "Response Headers",
+        badge: `${Object.keys(request.responseHeaders).length}`,
+        content: request.responseHeaders,
+      });
+    }
+
+    // Response Body
+    if (request.responseBody) {
+      const formatted = Utils.tryFormatResponse(request.responseBody);
+      sections.push({
+        title: "Response Body",
+        badge: Utils.formatBytes(
+          typeof request.responseBody === "string"
+            ? request.responseBody.length
+            : JSON.stringify(request.responseBody).length
+        ),
+        content: formatted.formatted ? formatted.content : request.responseBody,
+      });
+    }
+
+    // Timing
+    if (request.timing) {
+      sections.push({
+        title: "Timing",
+        badge: "⏱",
+        content: request.timing,
+      });
+    }
+
+    // Notes
+    if (request.notes) {
+      sections.push({
+        title: "Notes",
+        badge: "📝",
+        content: { notes: request.notes },
+      });
+    }
+
+    // Build HTML
+    let html = '<div class="json-collapsible">';
+    sections.forEach((section, idx) => {
+      const contentStr = typeof section.content === "string" ? section.content : Utils.prettyJSON(section.content);
+
+      html += `
+        <div class="json-section">
+          <div class="json-section-header" data-section="${idx}">
+            <div class="json-section-title">
+              <span class="json-section-toggle">▼</span>
+              ${section.title}
+              <span class="json-section-badge">${section.badge}</span>
+            </div>
+            <div class="json-section-actions">
+              <button class="json-section-copy" data-section="${idx}" title="Copy this section">📋 Copy</button>
+            </div>
+          </div>
+          <div class="json-section-content" data-section="${idx}">${contentStr}</div>
+        </div>
+      `;
+    });
+    html += "</div>";
+
+    previewContent.innerHTML = html;
+
+    // Add click handlers for expand/collapse
+    document.querySelectorAll(".json-section-header").forEach((header) => {
+      header.addEventListener("click", (e) => {
+        // Don't toggle if clicking copy button
+        if (e.target.classList.contains("json-section-copy")) return;
+
+        const sectionId = header.getAttribute("data-section");
+        const content = document.querySelector(`.json-section-content[data-section="${sectionId}"]`);
+        const toggle = header.querySelector(".json-section-toggle");
+
+        content.classList.toggle("collapsed");
+        toggle.classList.toggle("collapsed");
+      });
+    });
+
+    // Add click handlers for copy buttons
+    document.querySelectorAll(".json-section-copy").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const sectionId = btn.getAttribute("data-section");
+        const content = document.querySelector(`.json-section-content[data-section="${sectionId}"]`);
+
+        Utils.copyToClipboard(content.textContent);
+
+        const originalText = btn.textContent;
+        btn.textContent = "✓ Copied";
+        btn.style.opacity = "1";
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 1500);
+      });
+    });
+  }
+
+  // Render standard preview (raw or formatted)
+  function renderStandardPreview(request) {
     const preview = {
       id: request.id,
       timestamp: new Date(request.timestamp).toISOString(),
@@ -569,24 +824,170 @@
     if (request.requestHeaders) preview.requestHeaders = request.requestHeaders;
     if (request.requestBody) preview.requestBody = request.requestBody;
     if (request.responseHeaders) preview.responseHeaders = request.responseHeaders;
-    if (request.responseBody) preview.responseBody = request.responseBody;
     if (request.timing) preview.timing = request.timing;
     if (request.notes) preview.notes = request.notes;
 
-    previewContent.textContent = Utils.prettyJSON(preview);
+    // Handle response body based on view mode
+    if (request.responseBody) {
+      if (currentViewMode === "formatted") {
+        const formatted = Utils.tryFormatResponse(request.responseBody);
+        if (formatted.formatted) {
+          preview.responseBody = formatted.content;
+        } else {
+          preview.responseBody = request.responseBody;
+        }
+      } else {
+        preview.responseBody = request.responseBody;
+      }
+    }
+
+    if (currentViewMode === "formatted") {
+      previewContent.innerHTML = "<pre>" + Utils.formatJSON(preview) + "</pre>";
+    } else {
+      previewContent.textContent = Utils.prettyJSON(preview);
+    }
   }
+
+  // Toggle format view
+  viewModeSelect.addEventListener("change", () => {
+    if (!currentPreviewRequest) return;
+
+    currentViewMode = viewModeSelect.value;
+    renderPreview();
+  });
+
+  // Copy as cURL
+  curlBtn.addEventListener("click", () => {
+    if (!currentPreviewRequest) return;
+
+    const curl = Utils.generateCurl(currentPreviewRequest);
+    Utils.copyToClipboard(curl);
+
+    const originalText = curlBtn.textContent;
+    curlBtn.textContent = "✓ Copied";
+    setTimeout(() => {
+      curlBtn.textContent = originalText;
+    }, 1500);
+  });
 
   // Copy preview
   copyBtn.addEventListener("click", () => {
-    if (previewContent.textContent && previewContent.textContent !== "Select a request to view details") {
-      Utils.copyToClipboard(previewContent.textContent);
+    if (!currentPreviewRequest) return;
 
-      const originalText = copyBtn.textContent;
-      copyBtn.textContent = "✓ Copied";
-      setTimeout(() => {
-        copyBtn.textContent = originalText;
-      }, 1500);
-    }
+    // Always copy the full JSON representation
+    const fullJSON = buildFullRequestJSON(currentPreviewRequest);
+    Utils.copyToClipboard(Utils.prettyJSON(fullJSON));
+
+    const originalText = copyBtn.textContent;
+    copyBtn.textContent = "✓ Copied";
+    setTimeout(() => {
+      copyBtn.textContent = originalText;
+    }, 1500);
+  });
+
+  // Build full request JSON
+  function buildFullRequestJSON(request) {
+    const json = {
+      id: request.id,
+      timestamp: new Date(request.timestamp).toISOString(),
+      rule: request.ruleMatched,
+      url: request.url,
+      method: request.method,
+      status: request.status,
+      resourceType: request.resourceType,
+      fromCache: request.fromCache,
+    };
+
+    if (request.queryParams) json.queryParams = request.queryParams;
+    if (request.requestHeaders) json.requestHeaders = request.requestHeaders;
+    if (request.requestBody) json.requestBody = request.requestBody;
+    if (request.responseHeaders) json.responseHeaders = request.responseHeaders;
+    if (request.responseBody) json.responseBody = request.responseBody;
+    if (request.timing) json.timing = request.timing;
+    if (request.notes) json.notes = request.notes;
+
+    return json;
+  }
+
+  // Config modal functions
+  function loadConfigIntoForm() {
+    // Default values
+    document.getElementById("defaultMaxResponseSize").value = config.defaults?.maxResponseSize || 0;
+    document.getElementById("defaultHeaderFilterMode").value = config.defaults?.headerFilterMode || "none";
+
+    // Header presets
+    document.getElementById("commonHeadersList").value = config.headerPresets?.common?.join(", ") || "";
+    document.getElementById("securityHeadersList").value = config.headerPresets?.security?.join(", ") || "";
+    document.getElementById("cacheHeadersList").value = config.headerPresets?.cache?.join(", ") || "";
+
+    // Performance
+    document.getElementById("maxStoredRequests").value = config.performance?.maxStoredRequests || 1000;
+  }
+
+  document.getElementById("saveConfig").addEventListener("click", async () => {
+    const newConfig = {
+      defaults: {
+        maxResponseSize: parseInt(document.getElementById("defaultMaxResponseSize").value) || 0,
+        headerFilterMode: document.getElementById("defaultHeaderFilterMode").value,
+      },
+      headerPresets: {
+        common: document
+          .getElementById("commonHeadersList")
+          .value.split(",")
+          .map((h) => h.trim())
+          .filter((h) => h),
+        security: document
+          .getElementById("securityHeadersList")
+          .value.split(",")
+          .map((h) => h.trim())
+          .filter((h) => h),
+        cache: document
+          .getElementById("cacheHeadersList")
+          .value.split(",")
+          .map((h) => h.trim())
+          .filter((h) => h),
+      },
+      performance: {
+        maxStoredRequests: parseInt(document.getElementById("maxStoredRequests").value) || 1000,
+      },
+    };
+
+    await Storage.saveConfig(newConfig);
+    config = newConfig;
+    settings.maxStoredRequests = newConfig.performance.maxStoredRequests;
+    await Storage.saveSettings(settings);
+
+    alert("✓ Configuration saved successfully!");
+    configModal.classList.remove("active");
+  });
+
+  document.getElementById("resetConfig").addEventListener("click", async () => {
+    if (!confirm("Reset all configuration to defaults?")) return;
+
+    const defaultConfig = Storage.getDefaultConfig();
+    await Storage.saveConfig(defaultConfig);
+    config = defaultConfig;
+    settings.maxStoredRequests = defaultConfig.performance.maxStoredRequests;
+    await Storage.saveSettings(settings);
+
+    loadConfigIntoForm();
+    alert("✓ Configuration reset to defaults!");
+  });
+
+  // Reset header preset buttons
+  document.getElementById("resetCommonHeaders").addEventListener("click", () => {
+    const defaults = Storage.getDefaultConfig();
+    document.getElementById("commonHeadersList").value = defaults.headerPresets.common.join(", ");
+  });
+
+  document.getElementById("resetSecurityHeaders").addEventListener("click", () => {
+    const defaults = Storage.getDefaultConfig();
+    document.getElementById("securityHeadersList").value = defaults.headerPresets.security.join(", ");
+  });
+
+  document.getElementById("resetCacheHeaders").addEventListener("click", () => {
+    const defaults = Storage.getDefaultConfig();
+    document.getElementById("cacheHeadersList").value = defaults.headerPresets.cache.join(", ");
   });
 
   // Network listener
@@ -637,7 +1038,7 @@
             }
 
             // Capture request
-            const captured = Matcher.captureRequest(rawRequest, rule, matchedRules);
+            const captured = Matcher.captureRequest(rawRequest, rule, matchedRules, config);
 
             // Handle keepLastOnly
             if (rule.keepLastOnly) {

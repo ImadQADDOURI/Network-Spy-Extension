@@ -11,6 +11,10 @@ A powerful Chrome DevTools extension for capturing and analyzing network request
 - **Method Filtering**: Filter by HTTP methods (GET, POST, PUT, DELETE, PATCH)
 - **Domain Filtering**: Target specific domains or all domains
 - **Smart Capture**: Choose exactly what to capture per rule (headers, body, timing, etc.)
+- **Advanced Header Filtering**: Three modes - No filtering, Exclude mode, Include mode
+  - Exclude HTTP/2 pseudo-headers, common browser headers, security headers, cache headers, cookies
+  - Custom include/exclude lists
+  - Configurable presets via global config
 
 ### Real-Time Dashboard
 
@@ -22,9 +26,21 @@ A powerful Chrome DevTools extension for capturing and analyzing network request
 
 - **Pagination**: Handle thousands of requests with configurable page sizes
 - **Advanced Filtering**: Search, filter by rule, method, or status code
-- **Request Preview**: View complete request/response details in JSON format
-- **Copy to Clipboard**: Quick copy of any request
+- **Collapsible Preview**: View request details in organized, collapsible sections
+- **Multiple View Modes**: Collapsible (organized sections), Formatted (syntax highlighting), Raw (plain JSON)
+- **Quick Actions**:
+  - 📊 Format - Cycle through view modes
+  - 🔄 cURL - Copy request as cURL command
+  - 📋 Copy - Copy full request JSON
+- **Response Metadata**: Size, duration, cache status displayed prominently
 - **Export**: Export filtered requests or all rules as JSON
+
+### Global Configuration
+
+- **Default Rule Values**: Set default max response size and header filter mode for new rules
+- **Header Presets**: Customize which headers are considered "common", "security", "cache"
+- **Performance Settings**: Configure max stored requests
+- **Easy Reset**: Reset to defaults anytime
 
 ### Performance
 
@@ -32,6 +48,7 @@ A powerful Chrome DevTools extension for capturing and analyzing network request
 - **Memory Management**: Automatic limiting of stored requests
 - **Keep Last Only**: Option to keep only the most recent match per rule
 - **Max Matches**: Set limits per rule to prevent memory issues
+- **Response Size Limits**: Truncate large responses automatically
 
 ## 📋 Installation
 
@@ -61,16 +78,41 @@ A powerful Chrome DevTools extension for capturing and analyzing network request
 
 ### Example: Capture Facebook Ads Requests
 
+**Simple approach - Include mode:**
+
 ```json
 {
   "name": "Facebook Ads GraphQL",
   "matchText": "x-fb-friendly-name",
   "matchField": "header",
   "matchDomain": ["facebook.com"],
+  "headerFiltering": {
+    "mode": "include",
+    "includeHeadersCustom": ["x-fb-friendly-name", "authorization", "content-type"]
+  },
+  "maxResponseSize": 500,
   "capture": {
     "requestHeaders": true,
     "requestBody": true,
     "responseBody": true
+  }
+}
+```
+
+**Advanced approach - Exclude mode:**
+
+```json
+{
+  "name": "Facebook Clean Capture",
+  "matchText": "GraphQL",
+  "matchField": "url",
+  "matchDomain": ["facebook.com"],
+  "headerFiltering": {
+    "mode": "exclude",
+    "excludePseudoHeaders": true,
+    "excludeCommonHeaders": true,
+    "excludeSecurityHeaders": true,
+    "excludeCookies": true
   }
 }
 ```

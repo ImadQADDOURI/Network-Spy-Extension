@@ -13,6 +13,7 @@
         <button id="clearBtn" title="Clear captured requests">🗑 Clear</button>
         <button id="exportBtn" title="Export requests">⬇ Export</button>
         <button id="rulesBtn" class="btn-accent" title="Manage rules">⚙ Rules</button>
+        <button id="configBtn" title="Global configuration">⚙️ Config</button>
       </div>
     </header>
 
@@ -80,8 +81,17 @@
         <div id="requestPreview" class="request-preview">
           <div class="preview-header">
             <h3>Request Details</h3>
-            <button id="copyBtn" title="Copy to clipboard">📋 Copy</button>
+            <div class="preview-actions">
+              <select id="viewModeSelect" class="view-mode-select">
+                <option value="collapsible">📊 Collapsible</option>
+                <option value="formatted">🎨 Formatted</option>
+                <option value="raw">📝 Raw JSON</option>
+              </select>
+              <button id="curlBtn" title="Copy as cURL">🔄 cURL</button>
+              <button id="copyBtn" title="Copy full JSON">📋 Copy JSON</button>
+            </div>
           </div>
+          <div class="preview-meta" id="previewMeta"></div>
           <div id="previewContent" class="preview-content">Select a request to view details</div>
         </div>
       </section>
@@ -166,6 +176,64 @@
               </div>
             </div>
 
+            <div class="form-section">
+              <h4>Header Filtering (Optional)</h4>
+
+              <div class="form-group">
+                <label>Filtering Mode</label>
+                <select id="headerFilterMode">
+                  <option value="none">No Filtering (Capture All Headers)</option>
+                  <option value="exclude">Exclude Mode (Remove unwanted headers)</option>
+                  <option value="include">Include Mode (Keep only specific headers)</option>
+                </select>
+              </div>
+
+              <div id="excludeModeOptions" style="display: none">
+                <div class="checkbox-group">
+                  <label><input type="checkbox" id="excludePseudoHeaders" /> Exclude HTTP/2 pseudo-headers</label>
+                  <label><input type="checkbox" id="excludeCommonHeaders" /> Exclude common browser headers</label>
+                  <label
+                    ><input type="checkbox" id="excludeSecurityHeaders" /> Exclude security headers (sec-*,
+                    x-frame-options)</label
+                  >
+                  <label
+                    ><input type="checkbox" id="excludeCacheHeaders" /> Exclude cache headers (cache-control, etag,
+                    if-*)</label
+                  >
+                  <label><input type="checkbox" id="excludeCookies" /> Exclude cookies (cookie, set-cookie)</label>
+                </div>
+                <div class="form-group" style="margin-top: 12px">
+                  <label>Additional headers to exclude (comma-separated)</label>
+                  <input type="text" id="excludeHeadersCustom" placeholder="e.g., x-custom-header, internal-token" />
+                </div>
+              </div>
+
+              <div id="includeModeOptions" style="display: none">
+                <div class="form-group">
+                  <label>Headers to include (comma-separated, ONLY these will be captured)</label>
+                  <input
+                    type="text"
+                    id="includeHeadersCustom"
+                    placeholder="e.g., x-fb-friendly-name, authorization, content-type"
+                  />
+                  <small style="color: var(--text-muted); display: block; margin-top: 4px">
+                    💡 Tip: Use this for APIs with specific headers you care about
+                  </small>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h4>Response Size Limits (Optional)</h4>
+              <div class="form-group">
+                <label>Max response body size (KB, 0 = unlimited)</label>
+                <input type="number" id="maxResponseSize" value="0" min="0" placeholder="e.g., 500" />
+                <small style="color: var(--text-muted); display: block; margin-top: 4px"
+                  >Large responses will be truncated to save memory</small
+                >
+              </div>
+            </div>
+
             <div class="form-row">
               <div class="form-group">
                 <label>
@@ -195,6 +263,76 @@
     </div>
 
     <input type="file" id="importFileInput" accept=".json" style="display: none" />
+
+    <!-- Config Modal -->
+    <div id="configModal" class="modal">
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h2>⚙️ Global Configuration</h2>
+          <button class="close-btn" id="closeConfigModal">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="config-section">
+            <h3>Default Rule Values</h3>
+            <p class="muted">These values will be used when creating new rules</p>
+
+            <div class="form-group">
+              <label>Default Max Response Size (KB, 0 = unlimited)</label>
+              <input type="number" id="defaultMaxResponseSize" value="0" min="0" />
+            </div>
+
+            <div class="form-group">
+              <label>Default Header Filter Mode</label>
+              <select id="defaultHeaderFilterMode">
+                <option value="none">No Filtering</option>
+                <option value="exclude">Exclude Mode</option>
+                <option value="include">Include Mode</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="config-section">
+            <h3>Header Presets</h3>
+            <p class="muted">Customize which headers are considered "common", "security", etc.</p>
+
+            <div class="form-group">
+              <label>Common Browser Headers (comma-separated)</label>
+              <textarea id="commonHeadersList" rows="3"></textarea>
+              <button type="button" id="resetCommonHeaders" class="btn-small">Reset to Default</button>
+            </div>
+
+            <div class="form-group">
+              <label>Security Headers (comma-separated)</label>
+              <textarea id="securityHeadersList" rows="3"></textarea>
+              <button type="button" id="resetSecurityHeaders" class="btn-small">Reset to Default</button>
+            </div>
+
+            <div class="form-group">
+              <label>Cache Headers (comma-separated)</label>
+              <textarea id="cacheHeadersList" rows="3"></textarea>
+              <button type="button" id="resetCacheHeaders" class="btn-small">Reset to Default</button>
+            </div>
+          </div>
+
+          <div class="config-section">
+            <h3>Performance Settings</h3>
+
+            <div class="form-group">
+              <label>Max Stored Requests (Total)</label>
+              <input type="number" id="maxStoredRequests" value="1000" min="100" step="100" />
+              <small style="color: var(--text-muted); display: block; margin-top: 4px">
+                Older requests will be automatically removed when limit is reached
+              </small>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" id="saveConfig" class="btn-primary">💾 Save Configuration</button>
+            <button type="button" id="resetConfig" class="btn-danger">🔄 Reset to Defaults</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <script src="utils.js"></script>
     <script src="storage.js"></script>

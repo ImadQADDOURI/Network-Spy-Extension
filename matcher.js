@@ -93,7 +93,7 @@ const Matcher = {
   },
 
   // Build captured request object based on rule settings
-  captureRequest(rawRequest, rule, matchedRules) {
+  captureRequest(rawRequest, rule, matchedRules, config) {
     const captured = {
       id: Utils.uuid(),
       timestamp: Date.now(),
@@ -119,7 +119,12 @@ const Matcher = {
     }
 
     if (rule.capture.requestHeaders) {
-      captured.requestHeaders = Utils.headersToObject(rawRequest.requestHeaders || []);
+      let headers = Utils.headersToObject(rawRequest.requestHeaders || []);
+      // Apply header filtering
+      if (rule.headerFiltering) {
+        headers = Utils.filterHeaders(headers, rule.headerFiltering, config);
+      }
+      captured.requestHeaders = headers;
     }
 
     if (rule.capture.requestBody) {
@@ -127,11 +132,22 @@ const Matcher = {
     }
 
     if (rule.capture.responseHeaders) {
-      captured.responseHeaders = Utils.headersToObject(rawRequest.responseHeaders || []);
+      let headers = Utils.headersToObject(rawRequest.responseHeaders || []);
+      // Apply header filtering
+      if (rule.headerFiltering) {
+        headers = Utils.filterHeaders(headers, rule.headerFiltering, config);
+      }
+      captured.responseHeaders = headers;
     }
 
     if (rule.capture.responseBody) {
-      captured.responseBody = rawRequest.responseBody || "";
+      let body = rawRequest.responseBody || "";
+      // Apply size limit
+      if (rule.maxResponseSize) {
+        body = Utils.truncateBySize(body, rule.maxResponseSize);
+      }
+      captured.responseBody = body;
+      captured.responseSize = typeof body === "string" ? body.length : JSON.stringify(body).length;
     }
 
     if (rule.capture.timing) {

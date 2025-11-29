@@ -134,4 +134,146 @@ const Utils = {
       return null;
     }
   },
+
+  // Format JSON with syntax highlighting (simple)
+  formatJSON(obj) {
+    const json = JSON.stringify(obj, null, 2);
+    return json
+      .replace(/(".*?"):/g, '<span class="json-key">$1</span>:')
+      .replace(/: (".*?")/g, ': <span class="json-string">$1</span>')
+      .replace(/: (\d+)/g, ': <span class="json-number">$1</span>')
+      .replace(/: (true|false)/g, ': <span class="json-boolean">$1</span>')
+      .replace(/: (null)/g, ': <span class="json-null">$1</span>');
+  },
+
+  // Try to parse and format response body
+  tryFormatResponse(body) {
+    if (!body) return { formatted: false, content: "" };
+
+    // Try JSON
+    const json = this.safeJSONParse(body);
+    if (json) {
+      return { formatted: true, type: "json", content: json };
+    }
+
+    // Return as-is
+    return { formatted: false, content: body };
+  },
+
+  // Generate cURL command
+  generateCurl(request) {
+    let curl = `curl '${request.url}'`;
+
+    // Add method
+    if (request.method && request.method !== "GET") {
+      curl += ` -X ${request.method}`;
+    }
+
+    // Add headers
+    if (request.requestHeaders) {
+      Object.entries(request.requestHeaders).forEach(([key, value]) => {
+        // Skip pseudo-headers
+        if (key.startsWith(":")) return;
+        curl += ` \\\n  -H '${key}: ${value}'`;
+      });
+    }
+
+    // Add body
+    if (request.requestBody) {
+      const body = typeof request.requestBody === "string" ? request.requestBody : JSON.stringify(request.requestBody);
+      curl += ` \\\n  --data-raw '${body.replace(/'/g, "\\'")}'`;
+    }
+
+    return curl;
+  },
+
+  // Filter headers based on rule settings
+  filterHeaders(headers, filterSettings, config) {
+    if (!headers || !filterSettings) return headers;
+
+    // If no filtering mode, return all headers
+    if (!filterSettings.mode || filterSettings.mode === "none") {
+      return headers;
+    }
+
+    let filtered = { ...headers };
+
+    // Include mode (whitelist)
+    if (filterSettings.mode === "include") {
+      if (filterSettings.includeHeadersCustom && filterSettings.includeHeadersCustom.length > 0) {
+        const include = filterSettings.includeHeadersCustom.map((h) => h.toLowerCase());
+        filtered = Object.keys(filtered).reduce((acc, key) => {
+          if (include.includes(key.toLowerCase())) {
+            acc[key] = filtered[key];
+          }
+          return acc;
+        }, {});
+      }
+      return filtered;
+    }
+
+    // Exclude mode (blacklist)
+    if (filterSettings.mode === "exclude") {
+      // Exclude HTTP/2 pseudo-headers
+      if (filterSettings.excludePseudoHeaders) {
+        Object.keys(filtered).forEach((key) => {
+          if (key.startsWith(":")) delete filtered[key];
+        });
+      }
+
+      // Exclude common headers
+      if (filterSettings.excludeCommonHeaders && config?.headerPresets?.common) {
+        config.headerPresets.common.forEach((header) => {
+          delete filtered[header];
+          delete filtered[header.toLowerCase()];
+        });
+      }
+
+      // Exclude security headers
+      if (filterSettings.excludeSecurityHeaders && config?.headerPresets?.security) {
+        config.headerPresets.security.forEach((header) => {
+          delete filtered[header];
+          delete filtered[header.toLowerCase()];
+        });
+      }
+
+      // Exclude cache headers
+      if (filterSettings.excludeCacheHeaders && config?.headerPresets?.cache) {
+        config.headerPresets.cache.forEach((header) => {
+          delete filtered[header];
+          delete filtered[header.toLowerCase()];
+        });
+      }
+
+      // Exclude cookies
+      if (filterSettings.excludeCookies) {
+        delete filtered["cookie"];
+        delete filtered["Cookie"];
+        delete filtered["set-cookie"];
+        delete filtered["Set-Cookie"];
+      }
+
+      // Exclude custom headers
+      if (filterSettings.excludeHeadersCustom && filterSettings.excludeHeadersCustom.length > 0) {
+        filterSettings.excludeHeadersCustom.forEach((header) => {
+          delete filtered[header];
+          delete filtered[header.toLowerCase()];
+        });
+      }
+    }
+
+    return filtered;
+  },
+
+  // Truncate response body by size
+  truncateBySize(content, maxSizeKB) {
+    if (!maxSizeKB || maxSizeKB === 0) return content;
+
+    const maxBytes = maxSizeKB * 1024;
+    const contentStr = typeof content === "string" ? content : JSON.stringify(content);
+
+    if (contentStr.length <= maxBytes) return content;
+
+    return contentStr.slice(0, maxBytes) + "\n\n[... truncated at " + maxSizeKB + "KB limit]";
+  },
 };

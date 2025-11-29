@@ -88,8 +88,82 @@ const Storage = {
     });
   },
 
+  // Get config
+  async getConfig() {
+    return new Promise((resolve) => {
+      chrome.storage.sync.get(["config"], (data) => {
+        resolve(data.config || this.getDefaultConfig());
+      });
+    });
+  },
+
+  // Save config
+  async saveConfig(config) {
+    return new Promise((resolve) => {
+      chrome.storage.sync.set({ config }, () => {
+        resolve();
+      });
+    });
+  },
+
+  // Get default config
+  getDefaultConfig() {
+    return {
+      defaults: {
+        maxResponseSize: 0,
+        headerFilterMode: "none",
+      },
+      headerPresets: {
+        common: [
+          "user-agent",
+          "accept",
+          "accept-encoding",
+          "accept-language",
+          "cache-control",
+          "connection",
+          "host",
+          "referer",
+          "sec-ch-ua",
+          "sec-ch-ua-mobile",
+          "sec-ch-ua-platform",
+          "upgrade-insecure-requests",
+          "dnt",
+          "pragma",
+        ],
+        security: [
+          "sec-fetch-dest",
+          "sec-fetch-mode",
+          "sec-fetch-site",
+          "sec-fetch-user",
+          "x-frame-options",
+          "x-content-type-options",
+          "x-xss-protection",
+          "strict-transport-security",
+          "content-security-policy",
+          "x-permitted-cross-domain-policies",
+        ],
+        cache: [
+          "if-modified-since",
+          "if-none-match",
+          "if-match",
+          "if-unmodified-since",
+          "etag",
+          "last-modified",
+          "age",
+          "expires",
+          "vary",
+        ],
+      },
+      performance: {
+        maxStoredRequests: 1000,
+      },
+    };
+  },
+
   // Create default rule
-  createDefaultRule(overrides = {}) {
+  createDefaultRule(overrides = {}, config = null) {
+    const defaults = config?.defaults || { maxResponseSize: 0, headerFilterMode: "none" };
+
     return {
       id: Utils.uuid(),
       name: "New Rule",
@@ -106,6 +180,17 @@ const Storage = {
         responseBody: true,
         timing: true,
       },
+      headerFiltering: {
+        mode: defaults.headerFilterMode,
+        excludePseudoHeaders: false,
+        excludeCommonHeaders: false,
+        excludeSecurityHeaders: false,
+        excludeCacheHeaders: false,
+        excludeCookies: false,
+        excludeHeadersCustom: [],
+        includeHeadersCustom: [],
+      },
+      maxResponseSize: defaults.maxResponseSize,
       keepLastOnly: false,
       maxMatches: null,
       notes: "",
