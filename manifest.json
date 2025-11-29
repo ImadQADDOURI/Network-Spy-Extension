@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Universal Request Capture",
+  "name": "Network Spy",
   "version": "2.0.0",
-  "description": "Capture network requests with powerful rule-based filtering. Supports all request types with real-time matching and export.",
+  "description": "Powerful network request capture with advanced rule-based filtering. Monitor, analyze, and export any request type with precision.",
   "permissions": ["storage"],
   "devtools_page": "devtools.html",
   "icons": {

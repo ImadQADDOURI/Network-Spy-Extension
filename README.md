@@ -1,6 +1,6 @@
-# Universal Request Capture Chrome Extension
+# Network Spy - Chrome DevTools Extension
 
-A powerful Chrome DevTools extension for capturing and analyzing network requests with rule-based filtering. Perfect for debugging, API monitoring, and capturing specific requests like Facebook Ads GraphQL queries.
+A powerful Chrome DevTools extension for capturing and analyzing network requests with advanced rule-based filtering. Perfect for debugging APIs, monitoring network traffic, and capturing specific requests like Facebook Ads GraphQL queries.
 
 ## 🎯 Features
 

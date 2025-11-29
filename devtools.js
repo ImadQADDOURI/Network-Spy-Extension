@@ -1,3 +1,3 @@
-chrome.devtools.panels.create("Request Capture", "", "panel.html", function (panel) {
-  console.log("Request Capture panel created.");
+chrome.devtools.panels.create("Network Spy", "", "panel.html", function (panel) {
+  console.log("Network Spy panel created.");
 });
